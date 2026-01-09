@@ -330,6 +330,7 @@
                 <div class="actions">
                     <button class="ghost-btn" id="refreshBtn">Refresh</button>
                     <button class="ghost-btn" id="clearLog">Clear log</button>
+                    <button class="ghost-btn" id="runDemo">Run demo</button>
                 </div>
             </div>
             <div class="chip-row" style="margin-bottom: 10px;">
@@ -416,6 +417,7 @@
         const loadBtn = document.getElementById('loadCities');
         const refreshBtn = document.getElementById('refreshBtn');
         const clearLogBtn = document.getElementById('clearLog');
+        const runDemoBtn = document.getElementById('runDemo');
         const formPanel = document.getElementById('formPanel');
         const scrollToFormBtn = document.getElementById('scrollToForm');
         const submitBtn = document.getElementById('submitBtn');
@@ -536,6 +538,37 @@
             }
         };
 
+        const runDemo = async () => {
+            runDemoBtn.disabled = true;
+            setStatus('Running demo...');
+            try {
+                const demoPayload = {
+                    name: `Demo City ${Math.floor(Math.random() * 1000)}`,
+                    country: 'DemoLand',
+                    population: Math.floor(Math.random() * 5_000_000),
+                };
+
+                const createRes = await fetch(base, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify(demoPayload)
+                });
+                if (!createRes.ok) return handleError(createRes);
+                const createPayload = await createRes.json();
+                const created = unwrap(createPayload);
+                setResponse(`HTTP ${createRes.status}`, { created });
+
+                await fetchCities();
+                await deleteCity(created.id);
+                setStatus('Demo complete');
+            } catch (err) {
+                setStatus('Network error', false);
+                setResponse('Error', err.message);
+            } finally {
+                runDemoBtn.disabled = false;
+            }
+        };
+
         cityTableBody.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-action="delete"]');
             if (!btn) return;
@@ -546,6 +579,7 @@
         loadBtn.addEventListener('click', fetchCities);
         refreshBtn.addEventListener('click', fetchCities);
         clearLogBtn.addEventListener('click', () => setResponse('HTTP 200', 'Cleared. Ready for next call.'));
+        runDemoBtn.addEventListener('click', runDemo);
         scrollToFormBtn.addEventListener('click', () => formPanel.scrollIntoView({ behavior: 'smooth' }));
         scrollToDeleteBtn.addEventListener('click', () => deletePanel.scrollIntoView({ behavior: 'smooth' }));
         resetBtn.addEventListener('click', () => form.reset());

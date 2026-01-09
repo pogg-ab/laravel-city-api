@@ -16,7 +16,7 @@ class CityRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'country' => ['required', 'string', 'max:255'],
-            'population' => ['required', 'integer', 'min:0'],
+            'population' => ['nullable', 'integer', 'min:0'],
         ];
     }
 }

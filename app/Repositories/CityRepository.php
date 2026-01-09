@@ -5,15 +5,21 @@ namespace App\Repositories;
 class CityRepository
 {
     /**
-     * @var array<int, array<string, int|string>>
+     * Store cities using Laravel's cache (file driver by default),
+     * so state persists across HTTP requests without a database.
      */
-    protected array $cities = [];
-
-    protected int $nextId = 1;
+    
+    /** @var string */
+    protected string $citiesKey = 'cities';
+    /** @var string */
+    protected string $nextIdKey = 'cities_next_id';
 
     public function __construct()
     {
-        $this->reset();
+        // Initialize cache if empty.
+        if (!\Illuminate\Support\Facades\Cache::has($this->citiesKey) || !\Illuminate\Support\Facades\Cache::has($this->nextIdKey)) {
+            $this->reset();
+        }
     }
 
     /**
@@ -21,7 +27,8 @@ class CityRepository
      */
     public function all(): array
     {
-        return array_values($this->cities);
+        $cities = \Illuminate\Support\Facades\Cache::get($this->citiesKey, []);
+        return array_values($cities);
     }
 
     /**
@@ -29,7 +36,8 @@ class CityRepository
      */
     public function find(int $id): ?array
     {
-        return $this->cities[$id] ?? null;
+        $cities = \Illuminate\Support\Facades\Cache::get($this->citiesKey, []);
+        return $cities[$id] ?? null;
     }
 
     /**
@@ -37,14 +45,20 @@ class CityRepository
      */
     public function create(array $data): array
     {
+        $nextId = (int) \Illuminate\Support\Facades\Cache::get($this->nextIdKey, 1);
         $city = [
-            'id' => $this->nextId++,
+            'id' => $nextId,
             'name' => $data['name'],
             'country' => $data['country'],
-            'population' => (int) $data['population'],
+            'population' => array_key_exists('population', $data) && $data['population'] !== null
+                ? (int) $data['population']
+                : null,
         ];
 
-        $this->cities[$city['id']] = $city;
+        $cities = \Illuminate\Support\Facades\Cache::get($this->citiesKey, []);
+        $cities[$city['id']] = $city;
+        \Illuminate\Support\Facades\Cache::forever($this->citiesKey, $cities);
+        \Illuminate\Support\Facades\Cache::forever($this->nextIdKey, $nextId + 1);
 
         return $city;
     }
@@ -54,18 +68,22 @@ class CityRepository
      */
     public function update(int $id, array $data): ?array
     {
-        if (! isset($this->cities[$id])) {
+        $cities = \Illuminate\Support\Facades\Cache::get($this->citiesKey, []);
+        if (! isset($cities[$id])) {
             return null;
         }
 
-        $this->cities[$id] = [
+        $cities[$id] = [
             'id' => $id,
             'name' => $data['name'],
             'country' => $data['country'],
-            'population' => (int) $data['population'],
+            'population' => array_key_exists('population', $data) && $data['population'] !== null
+                ? (int) $data['population']
+                : null,
         ];
 
-        return $this->cities[$id];
+        \Illuminate\Support\Facades\Cache::forever($this->citiesKey, $cities);
+        return $cities[$id];
     }
 
     /**
@@ -73,11 +91,13 @@ class CityRepository
      */
     public function delete(int $id): bool
     {
-        if (! isset($this->cities[$id])) {
+        $cities = \Illuminate\Support\Facades\Cache::get($this->citiesKey, []);
+        if (! isset($cities[$id])) {
             return false;
         }
 
-        unset($this->cities[$id]);
+        unset($cities[$id]);
+        \Illuminate\Support\Facades\Cache::forever($this->citiesKey, $cities);
 
         return true;
     }
@@ -87,8 +107,8 @@ class CityRepository
      */
     public function reset(?array $seed = null): void
     {
-        $this->cities = [];
-        $this->nextId = 1;
+        \Illuminate\Support\Facades\Cache::forever($this->citiesKey, []);
+        \Illuminate\Support\Facades\Cache::forever($this->nextIdKey, 1);
 
         $seed ??= [
             ['name' => 'Addis Ababa', 'country' => 'Ethiopia', 'population' => 5060000],
